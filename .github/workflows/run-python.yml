@@ -1,4 +1,4 @@
-name: Run NSScreenShotMaker
+name: Run NSScreenshotMaker
 
 on:
   push:
@@ -24,14 +24,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pillow piexif
 
-      # 🔍 This step prints exactly what files exist on the runner
-      - name: Debug File Structure
-        run: |
-          echo "=== Root Directory Contents ==="
-          ls -R
-
-      - name: Run NSScreenShotMaker Script
+      # Fixed lowercase 's' in NSScreenshotMaker and matching image paths
+      - name: Run NSScreenshotMaker Script
         env:
           SECRET_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
         run: |
-          python3 NSScreenShotMaker.py -k "$SECRET_KEY" "input/image-1280x720.jpg" "input/img-1280x720 (1).jpg"
+          python3 NSScreenshotMaker.py -k "$SECRET_KEY" "input/image-1280x720.jpg" "input/image-1280x720 (1).jpg"
