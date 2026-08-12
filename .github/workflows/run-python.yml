@@ -24,9 +24,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pillow piexif
 
-      # Executes your exact command using safely injected environment secrets
+      # Executes the script from the root, pointing to the images inside the input folder
       - name: Run NSScreenShotMaker Script
         env:
           SECRET_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
         run: |
-          python3 NSScreenShotMaker.py -k "$SECRET_KEY" "image-1280x720.jpg" "img-1280x720 (1).jpg"
+          python3 NSScreenShotMaker.py -k "$SECRET_KEY" "input/image-1280x720.jpg" "input/img-1280x720 (1).jpg"
