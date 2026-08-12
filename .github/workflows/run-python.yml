@@ -1,0 +1,32 @@
+name: Run NSScreenShotMaker
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Image Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow piexif
+
+      # Executes your exact command using safely injected environment secrets
+      - name: Run NSScreenShotMaker Script
+        env:
+          SECRET_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
+        run: |
+          python3 NSScreenShotMaker.py -k "$SECRET_KEY" "image-1280x720.jpg" "img-1280x720 (1).jpg"
