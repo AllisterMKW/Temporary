@@ -29,7 +29,7 @@ jobs:
           SCREENSHOT_MAKER_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
         run: |
           python -c '
-          import os, io, hmac, glob, piexif
+          import os, io, hmac, piexif
           from hashlib import sha256
           from datetime import datetime
           from PIL import Image
@@ -72,12 +72,12 @@ jobs:
               thumbnail = io.BytesIO()
               resizeImage(fileName, 1280, 720).save(inputImage, "JPEG", quality=80)
               resizeImage(fileName, 320, 180).save(thumbnail, "JPEG", quality=40)
-              makerNoteZero = b"\x00\x00\x00\x00\x00\x00\10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\10\x00" + bytes.fromhex(titleID)
+              makerNoteZero = b"\x00\x00\x00\x00\x00\x00\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x10\x00" + bytes.fromhex(titleID)
               timestamp = date.strftime("%Y:%m:%d %H:%M:%S")
               exifData = piexif.dump(createJPEGExif(piexif.load(inputImage.getvalue()), makerNoteZero, timestamp, thumbnail.getvalue()))
               piexif.insert(exifData, inputImage.getvalue(), outputImage)
               hmacDigest = hmac.new(key, outputImage.getvalue(), sha256).digest()
-              makerNote = b"\x00\x00\x00\x00\x00\x00\10\x00" + hmacDigest[:16] + b"\x01\x00\10\x00" + bytes.fromhex(titleID)
+              makerNote = b"\x00\x00\x00\x00\x00\x00\x10\x00" + hmacDigest[:16] + b"\x01\x00\x10\x00" + bytes.fromhex(titleID)
               outputBytes = outputImage.getvalue().replace(makerNoteZero, makerNote)
               with open(outputPath, "wb") as file:
                   file.write(outputBytes)
@@ -88,10 +88,19 @@ jobs:
 
           key_bytes = bytes.fromhex(key_hex)
           default_title_id = "57B4628D2267231D57E0FC1078C0596D"
+          input_dir = "input"
 
-          images = glob.glob("*.jpg") + glob.glob("*.png") + glob.glob("*.jpeg")
+          valid_extensions = (".jpg", ".jpeg", ".png")
+          images = []
+
+          if os.path.exists(input_dir):
+              for root, dirs, files in os.walk(input_dir):
+                  for file in files:
+                      if file.lower().endswith(valid_extensions):
+                          images.append(os.path.join(root, file))
+
           if not images:
-              print("No images found to process.")
+              print(f"No images found inside zero-indexed \"{input_dir}\" directory.")
 
           for img in images:
               print(f"Processing {img}...")
