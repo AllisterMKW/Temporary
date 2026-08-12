@@ -19,20 +19,21 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Install system dependencies for GUI and Qt display
+      - name: Install system OpenGL and rendering libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgl1
+          sudo apt-get install -y xvfb libgl1 libglu1-mesa libopengl0
 
-      - name: Install all required Python modules and dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install Pillow piexif appdirs rarfile AnyQt PyQt5 pyforms-gui
+          pip install "numpy<2" Pillow piexif appdirs rarfile AnyQt PyQt5 pyforms-gui opencv-python-headless PyOpenGL
 
       - name: Execute NSScreenshotMaker.py with virtual framebuffer
         env:
           SCREENSHOT_MAKER_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
         run: |
+          mkdir -p ~/.local/share
           xvfb-run --auto-servernum python NSScreenshotMaker.py -k ${{ secrets.SCREENSHOT_MAKER_KEY }}
 
       - name: Upload processed outputs from SD folder
