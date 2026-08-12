@@ -1,4 +1,4 @@
-name: Run NSScreenshotMaker
+name: Run NSScreenshotMaker CLI
 
 on:
   workflow_dispatch:
@@ -19,22 +19,84 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: Install system X11 and Qt dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y xvfb libgl1 libglu1-mesa libxcb-cursor0 libxcb-xinerama0 libx11-xcb1 libxcb-render-util0 libxcb-shape0 libxcb-randr0 libxcb-image0 libxcb-icccm4 libxcb-keysyms1
-
-      - name: Install Python dependencies
+      - name: Install required Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "numpy<2" Pillow piexif appdirs rarfile AnyQt PyQt5 pyforms-gui
+          pip install Pillow piexif
 
-      - name: Execute NSScreenshotMaker.py with virtual framebuffer
+      - name: Execute NSScreenshotMaker CLI
         env:
           SCREENSHOT_MAKER_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
         run: |
-          mkdir -p ~/.local/share/NSScreenshotMaker
-          xvfb-run --auto-servernum python NSScreenshotMaker.py -k ${{ secrets.SCREENSHOT_MAKER_KEY }}
+          python -c '
+          import os, io, hmac, glob, piexif
+          from hashlib import sha256
+          from datetime import datetime
+          from PIL import Image
+
+          piexif._dump._get_thumbnail = lambda jpeg: jpeg
+
+          def resizeImage(path, sizeX, sizeY):
+              size = (sizeX, sizeY)
+              resizedImage = Image.new("RGB", size, (0, 0, 0))
+              image1 = Image.open(path).convert("RGB")
+              image1.thumbnail(size)
+              width1, height1 = image1.size
+              resizedImage.paste(image1, (int((sizeX - width1) / 2), int((sizeY - height1) / 2)))
+              return resizedImage
+
+          def createJPEGExif(exifDict, makerNote, timestamp, thumbnail):
+              newExifDict = exifDict.copy()
+              newExifDict.update({
+                  "Exif": {36864: b"0230", 37121: b"\x01\x02\x03\x00", 40962: 1280, 40963: 720, 40960: b"0100", 40961: 1, 37500: makerNote},
+                  "0th":  {274: 1, 531: 1, 296: 2, 34665: 164, 282: (72, 1), 283: (72, 1), 306: timestamp, 271: "Nintendo co., ltd"},
+                  "1st":  {513: 1524, 514: 32253, 259: 6, 296: 2, 282: (72, 1), 283: (72, 1)},
+                  "thumbnail": thumbnail
+              })
+              return newExifDict
+
+          def processFile(fileName, key, titleID, baseOutputFolder):
+              date = datetime.now()
+              outputFolder = os.path.join(baseOutputFolder, "Nintendo", "Album", date.strftime("%Y/%m/%d/"))
+              ind = 0
+              while os.path.isfile(os.path.join(outputFolder, date.strftime("%Y%m%d%H%M%S") + "{:02d}".format(ind) + "-" + titleID + ".jpg")):
+                  ind += 1
+                  if ind > 99:
+                      date = datetime.now()
+                      outputFolder = os.path.join(baseOutputFolder, "Nintendo", "Album", date.strftime("%Y/%m/%d/"))
+                      ind = 0
+              outputPath = os.path.join(outputFolder, date.strftime("%Y%m%d%H%M%S") + "{:02d}".format(ind) + "-" + titleID + ".jpg")
+              os.makedirs(outputFolder, exist_ok=True)
+              inputImage = io.BytesIO()
+              outputImage = io.BytesIO()
+              thumbnail = io.BytesIO()
+              resizeImage(fileName, 1280, 720).save(inputImage, "JPEG", quality=80)
+              resizeImage(fileName, 320, 180).save(thumbnail, "JPEG", quality=40)
+              makerNoteZero = b"\x00\x00\x00\x00\x00\x00\10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\10\x00" + bytes.fromhex(titleID)
+              timestamp = date.strftime("%Y:%m:%d %H:%M:%S")
+              exifData = piexif.dump(createJPEGExif(piexif.load(inputImage.getvalue()), makerNoteZero, timestamp, thumbnail.getvalue()))
+              piexif.insert(exifData, inputImage.getvalue(), outputImage)
+              hmacDigest = hmac.new(key, outputImage.getvalue(), sha256).digest()
+              makerNote = b"\x00\x00\x00\x00\x00\x00\10\x00" + hmacDigest[:16] + b"\x01\x00\10\x00" + bytes.fromhex(titleID)
+              outputBytes = outputImage.getvalue().replace(makerNoteZero, makerNote)
+              with open(outputPath, "wb") as file:
+                  file.write(outputBytes)
+
+          key_hex = os.environ.get("SCREENSHOT_MAKER_KEY", "").strip()
+          if not key_hex:
+              raise ValueError("SCREENSHOT_MAKER_KEY secret is missing or empty.")
+
+          key_bytes = bytes.fromhex(key_hex)
+          default_title_id = "57B4628D2267231D57E0FC1078C0596D"
+
+          images = glob.glob("*.jpg") + glob.glob("*.png") + glob.glob("*.jpeg")
+          if not images:
+              print("No images found to process.")
+
+          for img in images:
+              print(f"Processing {img}...")
+              processFile(img, key_bytes, default_title_id, "SD")
+          '
 
       - name: Upload processed outputs from SD folder
         uses: actions/upload-artifact@v4
