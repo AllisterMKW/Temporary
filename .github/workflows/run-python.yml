@@ -24,7 +24,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install pillow piexif
 
-      # Executes the script from the root, pointing to the images inside the input folder
+      # 🔍 This step prints exactly what files exist on the runner
+      - name: Debug File Structure
+        run: |
+          echo "=== Root Directory Contents ==="
+          ls -R
+
       - name: Run NSScreenShotMaker Script
         env:
           SECRET_KEY: ${{ secrets.SCREENSHOT_MAKER_KEY }}
